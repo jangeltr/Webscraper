@@ -1,0 +1,38 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(node -e ' *)",
+      "Bash(curl -s --max-time 60 \"http://localhost:3000/api/scrape?url=https%3A%2F%2Fwww.cyberpuerta.mx&q=disco%20duro\")",
+      "Bash(python3 -m json.tool)",
+      "Bash(kill 47064)",
+      "Bash(curl -s http://localhost:3000/api/health)",
+      "Bash(curl -s \"http://localhost:3000/api/scrape?url=https://www.cyberpuerta.mx/&q=disco%20duro\")",
+      "Bash(disown)",
+      "Bash(xargs kill -9)",
+      "Bash(node /home/angel/Documents/Projects/Webscraper/server.js)",
+      "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); [print\\(f'{it[\\\\\"price\\\\\"]:>20} | {it[\\\\\"name\\\\\"][:60]}'\\) for it in d['items']]; print\\(f'\\\\nTotal: {len\\(d[\\\\\"items\\\\\"]\\)} items, error: {d[\\\\\"error\\\\\"]}'\\)\")",
+      "Bash(curl -s \"http://localhost:3000/api/scrape?url=https://www.mercadolibre.com.mx/&q=resma%20papel%20bond\")",
+      "Bash(curl -s \"https://api.mercadolibre.com/sites/MLM/search?q=resma+papel+bond&limit=3\")",
+      "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); results=d.get\\('results',[]\\); [print\\(f'\\\\${it[\\\\\"price\\\\\"]} | {it[\\\\\"title\\\\\"][:60]}'\\) for it in results[:3]]; print\\(f'Total: {len\\(results\\)}'\\)\")",
+      "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); print\\(json.dumps\\(d, indent=2\\)[:500]\\)\")",
+      "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); [print\\(f'{it[\\\\\"price\\\\\"]:>20} | {it[\\\\\"name\\\\\"][:65]}'\\) for it in d['items']]; print\\(f'\\\\nTotal: {len\\(d[\\\\\"items\\\\\"]\\)}, error: {d[\\\\\"error\\\\\"]}'\\)\")",
+      "Bash(curl -s \"http://localhost:3000/api/scrape?url=https://www.mercadolibre.com.mx/&q=papel%20bond\")",
+      "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); [print\\(f'{it[\\\\\"price\\\\\"]:>20} | {it[\\\\\"name\\\\\"][:60]}'\\) for it in d['items']]; print\\(f'error: {d[\\\\\"error\\\\\"]}'\\)\")",
+      "Bash(curl -s \"http://localhost:3000/api/scrape?url=https://www.cyberpuerta.mx/&q=resma%20papel%20bond\")",
+      "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); [print\\(f'{it[\\\\\"price\\\\\"]:>20} | {it[\\\\\"name\\\\\"][:65]}'\\) for it in d['items']]; print\\(f'\\\\nerror: {d[\\\\\"error\\\\\"]}'\\)\")",
+      "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); print\\(f'items: {len\\(d[\\\\\"items\\\\\"]\\)}\\\\nerror: {d[\\\\\"error\\\\\"]}'\\)\")",
+      "Bash(curl -s \"http://localhost:3000/api/scrape?url=https://www.cyberpuerta.mx/&q=toner%20hp\")",
+      "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); [print\\(f'{it[\\\\\"price\\\\\"]:>20} | {it[\\\\\"name\\\\\"][:65]}'\\) for it in d['items'][:4]]; print\\(f'error: {d[\\\\\"error\\\\\"]}'\\)\")",
+      "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); [print\\(f'{it[\\\\\"price\\\\\"]:>20} | {it[\\\\\"name\\\\\"][:65]}'\\) for it in d['items'][:4]]; print\\(f'total:{len\\(d[\\\\\"items\\\\\"]\\)} error:{d[\\\\\"error\\\\\"]}'\\)\")",
+      "Bash(python3 -c ' *)",
+      "Bash(python3 -c 'import urllib.parse; print\\(urllib.parse.quote\\('\\\\''__TRACKED_VAR__'\\\\''\\)\\)')",
+      "Bash(curl -s 'http://localhost:3000/api/scrape?url=https://www.cyberpuerta.mx/&q=__CMDSUB_OUTPUT__')",
+      "Bash(curl -s \"http://localhost:3000/api/scrape?url=https://www.digitalife.com.mx/&q=laptop\")",
+      "Bash(curl -sv \"https://www.digitalife.com.mx/search?q=laptop\" -H \"User-Agent: Mozilla/5.0 \\(Windows NT 10.0; Win64; x64\\) AppleWebKit/537.36\")",
+      "Bash('.input-search-home')",
+      "Bash(curl -s https://core.digitalife.com.mx/api/search/t_laptop -H 'User-Agent: Mozilla/5.0 \\(Windows NT 10.0; Win64; x64\\) AppleWebKit/537.36' -H 'Accept: application/json' --max-time 10)",
+      "Bash(curl -sv https://core.digitalife.com.mx/api/search/t_laptop -H 'User-Agent: Mozilla/5.0' --max-time 10)",
+      "Bash(curl -s 'http://localhost:3000/api/scrape?url=__CMDSUB_OUTPUT__&q=laptop')"
+    ]
+  }
+}
