@@ -1,5 +1,18 @@
 'use strict';
 
+// Cargar variables de entorno desde .env si existe
+try {
+  require('fs').readFileSync(require('path').join(__dirname, '.env'), 'utf8')
+    .split('\n')
+    .forEach(line => {
+      const eq = line.indexOf('=');
+      if (eq < 1 || line.trimStart().startsWith('#')) return;
+      const k = line.slice(0, eq).trim();
+      const v = line.slice(eq + 1).trim();
+      if (k && v && !process.env[k]) process.env[k] = v;
+    });
+} catch {}
+
 const express   = require('express');
 const axios     = require('axios');
 const cheerio   = require('cheerio');
@@ -81,8 +94,10 @@ function buildSearchUrl(baseUrl, product) {
     if (host.includes('elektra'))      return `https://www.elektra.com.mx/busqueda?query=${encodeURIComponent(product)}`;
     if (host.includes('costco'))       return `https://www.costco.com.mx/search?q=${encodeURIComponent(product)}`;
     if (host.includes('staples'))      return `https://www.staples.com.mx/search?q=${encodeURIComponent(product)}`;
-    if (host.includes('officemax') || host.includes('officedepot'))
-      return `https://www.officemax.com.mx/search?query=${encodeURIComponent(product)}`;
+    if (host.includes('officemax'))
+      return `https://www.officemax.com.mx/buscar?q=${encodeURIComponent(product)}`;
+    if (host.includes('officedepot'))
+      return `https://www.officedepot.com.mx/buscar?q=${encodeURIComponent(product)}`;
 
     // Detectar parámetro de búsqueda existente en la URL
     for (const p of ['q', 'query', 'search', 'buscar', 'keyword', 'term', 's', 'searchTerm']) {
@@ -456,26 +471,7 @@ async function scrapeCyberpuerta(product) {
   }
 }
 
-// ── MercadoLibre: API oficial + Puppeteer ────────────────────
-async function scrapeML(product) {
-  // Intentar API oficial (requiere app registrada en developers.mercadolibre.com)
-  try {
-    const res = await axios.get('https://api.mercadolibre.com/sites/MLM/search', {
-      params: { q: product, limit: 8 }, headers: BROWSER_HEADERS, timeout: 10000,
-    });
-    if (res.data?.results?.length > 0) {
-      return res.data.results.map(item => ({
-        name : item.title,
-        price: formatPrice(item.price),
-        url  : item.permalink,
-      }));
-    }
-  } catch {}
 
-  // Puppeteer: ML bloquea IPs de servidor con verificación de cuenta.
-  // Como alternativa, mostrar mensaje claro en lugar de timeout largo.
-  throw new Error('MercadoLibre requiere búsqueda manual (sitio bloquea acceso automatizado desde servidor). Visite mercadolibre.com.mx directamente.');
-}
 
 // ── Digitalife: homepage search → API interception ───────────
 async function scrapeDigitalife(product) {
@@ -640,11 +636,6 @@ app.get('/api/scrape', async (req, res) => {
       console.log(`[scrape] ${host} → Digitalife form search`);
       items = await scrapeDigitalife(product);
 
-    } else if (host.includes('mercadolibre')) {
-      // MercadoLibre: API + Puppeteer listado
-      console.log(`[scrape] ${host} → ML listado`);
-      items = await scrapeML(product);
-
     } else {
       const searchUrl = buildSearchUrl(supplierUrl, product);
       const needsJS   = JS_REQUIRED_HOSTS.some(h => host.includes(h));
@@ -672,8 +663,16 @@ app.get('/api/scrape', async (req, res) => {
 
     if (status === 404) {
       message = 'URL no encontrada (404). Actualice la URL del proveedor con la ruta correcta de búsqueda (use {q} como marcador).';
-    } else if (status === 403 || status === 429) {
-      message = 'El sitio rechazó la consulta. Intente más tarde o consulte manualmente.';
+    } else if (status >= 500) {
+      message = 'El sitio del proveedor tuvo un error interno (500). Intente más tarde o actualice la URL de búsqueda del proveedor.';
+    } else if (status === 403) {
+      if (host.includes('mercadolibre')) {
+        message = 'MercadoLibre bloqueó la consulta. Verifique que su app tenga permiso de búsqueda habilitado en developers.mercadolibre.com.mx.';
+      } else {
+        message = 'El sitio rechazó la consulta (403). Intente más tarde o consulte manualmente.';
+      }
+    } else if (status === 429) {
+      message = 'Demasiadas consultas al sitio. Espere unos minutos e intente de nuevo.';
     } else if (e.code === 'ECONNREFUSED' || e.code === 'ENOTFOUND') {
       message = 'No se pudo conectar al sitio del proveedor.';
     } else if (e.code === 'ECONNABORTED' || message.includes('timeout') || message.includes('Timeout')) {

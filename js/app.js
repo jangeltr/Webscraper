@@ -330,17 +330,7 @@ const SuppliersModule = (() => {
     });
   }
 
-  // Proveedores con API pública libre (sin autenticación)
-  const API_PROVIDERS = [
-    {
-      nombre  : 'MercadoLibre México',
-      contacto: 'Atención a vendedores',
-      email   : 'ayuda@mercadolibre.com.mx',
-      telefono: '800 900 0900',
-      url     : 'https://www.mercadolibre.com.mx',
-      tag     : 'mercadolibre.com',
-    },
-  ];
+  const API_PROVIDERS = [];
 
   function seedApiSuppliers() {
     const cats = Store.getCategories();
@@ -391,6 +381,13 @@ const SuppliersModule = (() => {
   return { init, render, edit, remove };
 })();
 
+// ── Parsea precio a número (ej. "$18,125.00 MXN" → 18125) ────
+function parsePrice(str) {
+  const m = String(str || '').match(/[\d,]+(?:\.\d+)?/);
+  if (!m) return NaN;
+  return parseFloat(m[0].replace(/,/g, ''));
+}
+
 // ══════════════════════════════════════════════════════════════
 // MÓDULO: Scraper — llama al servidor local /api/scrape
 // ══════════════════════════════════════════════════════════════
@@ -436,30 +433,6 @@ const Scraper = (() => {
 const SearchModule = (() => {
 
   // Inserta filas de resultado en tbody; una fila por producto encontrado
-  function insertResultRows(tbody, supplier, cat, items) {
-    const suppName = esc(supplier.nombre);
-    const catBadge = `<span class="badge bg-info text-dark">${esc(cat?.nombre ?? '—')}</span>`;
-    const contact  = esc(supplier.contacto) || '—';
-
-    items.forEach((item, i) => {
-      const nameCell = item.url
-        ? `<a href="${esc(item.url)}" target="_blank" rel="noopener" class="text-decoration-none">${esc(item.name)}</a>`
-        : esc(item.name);
-
-      const tr = document.createElement('tr');
-      tr.innerHTML = `
-        <td class="fw-semibold align-middle">${i === 0 ? suppName : '<span class="text-muted small">↑ mismo</span>'}</td>
-        <td class="align-middle">${i === 0 ? catBadge : ''}</td>
-        <td class="align-middle small">${i === 0 ? contact : ''}</td>
-        <td class="align-middle">${nameCell}</td>
-        <td class="text-end align-middle fw-bold text-success">${esc(item.price)}</td>
-        <td class="text-center align-middle">
-          ${item.url ? `<a href="${esc(item.url)}" target="_blank" rel="noopener" class="btn btn-sm btn-outline-success"><i class="bi bi-cart"></i></a>` : '—'}
-        </td>`;
-      tbody.appendChild(tr);
-    });
-  }
-
   function insertErrorRow(tbody, supplier, cat, message, product) {
     const searchLink = esc(Scraper.buildSearchUrl(supplier.url, product || ''));
     const tr = document.createElement('tr');
@@ -491,6 +464,8 @@ const SearchModule = (() => {
       </tr>`;
   }
 
+  let _searchData = []; // [{supplier, cat, items, error, product}]
+
   async function search() {
     const product     = document.getElementById('searchProduct').value.trim();
     const categoryId  = document.getElementById('searchCategory').value;
@@ -509,6 +484,17 @@ const SearchModule = (() => {
     const cats = Store.getCategories();
     if (categoryId) supps = supps.filter((s) => s.categoriaId === categoryId);
 
+    // Evitar consultar el mismo sitio web más de una vez (mismo hostname en varias categorías)
+    const seenHosts = new Set();
+    supps = supps.filter(s => {
+      try {
+        const h = new URL(s.url).hostname;
+        if (seenHosts.has(h)) return false;
+        seenHosts.add(h);
+        return true;
+      } catch { return true; }
+    });
+
     document.getElementById('searchQuery').textContent = `"${product}"`;
 
     if (supps.length === 0) {
@@ -522,35 +508,140 @@ const SearchModule = (() => {
     document.getElementById('resultsCount').textContent =
       `${supps.length} proveedor${supps.length !== 1 ? 'es' : ''}`;
 
+    // Resetear datos y filtros de la búsqueda anterior
+    _searchData = [];
+    document.getElementById('filterPriceMin').value = '';
+    document.getElementById('filterPriceMax').value = '';
+
     // Mostrar filas con spinner por cada proveedor
     tbody.innerHTML = supps.map((s) => {
       const cat = cats.find((c) => c.id === s.categoriaId);
       return renderSpinnerRow(s, cat);
     }).join('');
 
-    // Consultar todos en paralelo; reemplazar fila spinner al terminar cada uno
+    // Consultar todos en paralelo; acumular resultados y quitar spinner al terminar
     await Promise.allSettled(
       supps.map(async (s) => {
         const cat     = cats.find((c) => c.id === s.categoriaId);
         const spinRow = document.getElementById(`srow-${s.id}`);
         try {
           const { items } = await Scraper.scrape(s.url, product);
-          spinRow?.remove();
-          if (items.length > 0) {
-            insertResultRows(tbody, s, cat, items);
-          } else {
-            insertErrorRow(tbody, s, cat, 'El sitio respondió pero no se encontraron precios. Use el enlace para buscar manualmente.', product);
-          }
+          _searchData.push({ supplier: s, cat, items, error: null, product });
         } catch (err) {
+          const msg = err.message || 'No se pudo acceder al sitio. Use el enlace para buscar manualmente.';
+          _searchData.push({ supplier: s, cat, items: [], error: msg, product });
+        } finally {
           spinRow?.remove();
-          insertErrorRow(tbody, s, cat, err.message || 'No se pudo acceder al sitio. Use el enlace para buscar manualmente.', product);
         }
       })
     );
 
-    // Actualizar contador con total de filas de resultado
-    const totalRows = tbody.querySelectorAll('tr').length;
-    document.getElementById('resultsCount').textContent = `${totalRows} resultado${totalRows !== 1 ? 's' : ''}`;
+    renderFilteredResults();
+  }
+
+  const _rowDataMap = new Map(); // rowId → datos del producto para guardar
+
+  function renderFilteredResults() {
+    const minVal   = document.getElementById('filterPriceMin').value;
+    const maxVal   = document.getElementById('filterPriceMax').value;
+    const min      = minVal !== '' ? parseFloat(minVal) : -Infinity;
+    const max      = maxVal !== '' ? parseFloat(maxVal) :  Infinity;
+    const hasFilter = minVal !== '' || maxVal !== '';
+
+    const tbody = document.getElementById('resultsBody');
+    tbody.innerHTML = '';
+    _rowDataMap.clear();
+    document.getElementById('checkAll').checked = false;
+    document.getElementById('btnAddInterests').disabled = true;
+
+    // Aplanar y filtrar todos los ítems de todos los proveedores
+    const flatItems = [];
+    _searchData.forEach(({ supplier, cat, items, product: searchTerm }) => {
+      if (!items || items.length === 0) return;
+      items.forEach(item => {
+        const p = parsePrice(item.price);
+        if (!hasFilter || isNaN(p) || (p >= min && p <= max)) {
+          flatItems.push({ supplier, cat, item, searchTerm });
+        }
+      });
+    });
+
+    // Ordenar por precio ascendente
+    flatItems.sort((a, b) => {
+      const pa = parsePrice(a.item.price);
+      const pb = parsePrice(b.item.price);
+      if (isNaN(pa) && isNaN(pb)) return 0;
+      if (isNaN(pa)) return 1;
+      if (isNaN(pb)) return -1;
+      return pa - pb;
+    });
+
+    // Renderizar ítems ordenados con checkbox
+    flatItems.forEach(({ supplier, cat, item, searchTerm }) => {
+      const rowId = Store.newId();
+      _rowDataMap.set(rowId, {
+        id         : rowId,
+        name       : item.name,
+        price      : item.price,
+        url        : item.url || null,
+        supplierName: supplier.nombre,
+        supplierUrl : supplier.url,
+        catName    : cat?.nombre ?? '',
+        searchTerm,
+        savedAt    : Date.now(),
+      });
+
+      const nameCell = item.url
+        ? `<a href="${esc(item.url)}" target="_blank" rel="noopener" class="text-decoration-none">${esc(item.name)}</a>`
+        : esc(item.name);
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td class="text-center align-middle">
+          <input type="checkbox" class="form-check-input result-check" data-id="${rowId}">
+        </td>
+        <td class="fw-semibold align-middle">${esc(supplier.nombre)}</td>
+        <td class="align-middle"><span class="badge bg-info text-dark">${esc(cat?.nombre ?? '—')}</span></td>
+        <td class="align-middle small">${esc(supplier.contacto) || '—'}</td>
+        <td class="align-middle">${nameCell}</td>
+        <td class="text-end align-middle fw-bold text-success">${esc(item.price)}</td>
+        <td class="text-center align-middle">
+          ${item.url ? `<a href="${esc(item.url)}" target="_blank" rel="noopener" class="btn btn-sm btn-outline-success"><i class="bi bi-cart"></i></a>` : '—'}
+        </td>`;
+      tbody.appendChild(tr);
+    });
+
+    // Proveedores con ítems pero ninguno en el rango (solo cuando hay filtro activo)
+    if (hasFilter) {
+      _searchData.forEach(({ supplier, cat, items, error }) => {
+        if (error || !items || items.length === 0) return;
+        const anyMatch = items.some(item => {
+          const p = parsePrice(item.price);
+          return isNaN(p) || (p >= min && p <= max);
+        });
+        if (!anyMatch) {
+          insertErrorRow(tbody, supplier, cat,
+            `Sin resultados en este rango (${items.length} producto${items.length !== 1 ? 's' : ''} fuera del rango).`,
+            '');
+        }
+      });
+    }
+
+    // Filas de error (proveedores que fallaron)
+    _searchData.forEach(({ supplier, cat, error, product: prod }) => {
+      if (!error) return;
+      insertErrorRow(tbody, supplier, cat, error, prod || '');
+    });
+
+    // Actualizar contador
+    const productRows = tbody.querySelectorAll('tr:not(.table-warning)').length;
+    const hasFilterLabel = hasFilter ? ' (filtrado)' : '';
+    document.getElementById('resultsCount').textContent =
+      `${productRows} resultado${productRows !== 1 ? 's' : ''}${hasFilterLabel}`;
+  }
+
+  function updateAddButton() {
+    const any = document.querySelector('#resultsBody .result-check:checked');
+    document.getElementById('btnAddInterests').disabled = !any;
   }
 
   function init() {
@@ -558,9 +649,168 @@ const SearchModule = (() => {
     document.getElementById('searchProduct').addEventListener('keydown', (e) => {
       if (e.key === 'Enter') search();
     });
+    document.getElementById('filterPriceMin').addEventListener('input', renderFilteredResults);
+    document.getElementById('filterPriceMax').addEventListener('input', renderFilteredResults);
+    document.getElementById('btnClearPriceFilter').addEventListener('click', () => {
+      document.getElementById('filterPriceMin').value = '';
+      document.getElementById('filterPriceMax').value = '';
+      renderFilteredResults();
+    });
+
+    // Checkbox "seleccionar todos"
+    document.getElementById('checkAll').addEventListener('change', (e) => {
+      document.querySelectorAll('#resultsBody .result-check').forEach(cb => {
+        cb.checked = e.target.checked;
+      });
+      updateAddButton();
+    });
+
+    // Actualizar botón al marcar/desmarcar filas individuales
+    document.getElementById('resultsBody').addEventListener('change', (e) => {
+      if (e.target.classList.contains('result-check')) {
+        const all  = document.querySelectorAll('#resultsBody .result-check');
+        const checked = document.querySelectorAll('#resultsBody .result-check:checked');
+        document.getElementById('checkAll').checked = all.length === checked.length;
+        updateAddButton();
+      }
+    });
+
+    // Guardar seleccionados en Interesantes
+    document.getElementById('btnAddInterests').addEventListener('click', () => {
+      const checked = [...document.querySelectorAll('#resultsBody .result-check:checked')];
+      const products = checked.map(cb => _rowDataMap.get(cb.dataset.id)).filter(Boolean);
+      const added = InterestsModule.add(products);
+      checked.forEach(cb => { cb.checked = false; });
+      document.getElementById('checkAll').checked = false;
+      updateAddButton();
+      if (added > 0) {
+        Toast.show(`${added} producto${added !== 1 ? 's' : ''} guardado${added !== 1 ? 's' : ''} en Interesantes.`);
+      } else {
+        Toast.show('Esos productos ya estaban en tu lista de Interesantes.', 'warning');
+      }
+    });
   }
 
   return { init };
+})();
+
+// ══════════════════════════════════════════════════════════════
+// MÓDULO: Interesantes
+// ══════════════════════════════════════════════════════════════
+const InterestsModule = (() => {
+  const KEY = 'wscraper_interests';
+
+  const getAll  = ()       => JSON.parse(localStorage.getItem(KEY) || '[]');
+  const saveAll = (items)  => localStorage.setItem(KEY, JSON.stringify(items));
+
+  function updateBadge() {
+    const n = getAll().length;
+    const badge = document.getElementById('interestCount');
+    badge.textContent = n;
+    badge.style.display = n > 0 ? '' : 'none';
+  }
+
+  function render() {
+    const items   = getAll();
+    const tbody   = document.getElementById('tbodyInterests');
+    const emptyEl = document.getElementById('emptyInterests');
+    updateBadge();
+
+    if (items.length === 0) {
+      tbody.innerHTML   = '';
+      emptyEl.style.display = 'block';
+      return;
+    }
+    emptyEl.style.display = 'none';
+    tbody.innerHTML = items.map(p => `
+      <tr id="irow-${p.id}">
+        <td class="align-middle">
+          ${p.url
+            ? `<a href="${esc(p.url)}" target="_blank" rel="noopener" class="text-decoration-none fw-medium">${esc(p.name)}</a>`
+            : `<span class="fw-medium">${esc(p.name)}</span>`}
+          <div class="text-muted small">${esc(p.searchTerm)}</div>
+        </td>
+        <td class="align-middle small">${esc(p.supplierName)}</td>
+        <td class="align-middle">
+          ${p.catName ? `<span class="badge bg-info text-dark">${esc(p.catName)}</span>` : '—'}
+        </td>
+        <td class="text-end align-middle fw-bold text-success">${esc(p.price)}</td>
+        <td class="text-end align-middle" id="uprice-${p.id}">—</td>
+        <td class="text-center align-middle">
+          <button class="btn btn-sm btn-outline-danger btn-action"
+            onclick="InterestsModule.remove('${p.id}')" title="Quitar de la lista">
+            <i class="bi bi-trash"></i>
+          </button>
+        </td>
+      </tr>`).join('');
+  }
+
+  function add(products) {
+    const existing = getAll();
+    const toAdd = products.filter(p =>
+      !existing.some(e => e.url ? e.url === p.url : e.name === p.name && e.supplierUrl === p.supplierUrl)
+    );
+    if (toAdd.length > 0) saveAll([...existing, ...toAdd]);
+    render();
+    return toAdd.length;
+  }
+
+  function remove(id) {
+    saveAll(getAll().filter(p => p.id !== id));
+    render();
+    Toast.show('Producto quitado de Interesantes.', 'warning');
+  }
+
+  async function refreshPrices() {
+    const items = getAll();
+    if (items.length === 0) { Toast.show('No hay productos guardados.', 'warning'); return; }
+
+    const btn = document.getElementById('btnRefreshInterests');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Actualizando...';
+
+    await Promise.allSettled(items.map(async (p) => {
+      const cell = document.getElementById(`uprice-${p.id}`);
+      if (!cell) return;
+      cell.innerHTML = '<span class="spinner-border spinner-border-sm text-primary"></span>';
+      try {
+        const res  = await fetch(`/api/scrape?url=${encodeURIComponent(p.supplierUrl)}&q=${encodeURIComponent(p.searchTerm)}`);
+        const data = await res.json();
+        const match = data.items?.find(r => r.url && r.url === p.url) ?? data.items?.[0];
+        if (match) {
+          const pSaved   = parsePrice(p.price);
+          const pNew     = parsePrice(match.price);
+          const changed  = match.price !== p.price;
+          const down     = pNew < pSaved;
+          cell.innerHTML = changed
+            ? `<span class="fw-bold ${down ? 'text-success' : 'text-danger'}">${esc(match.price)} ${down ? '↓' : '↑'}</span>`
+            : `<span class="text-muted">${esc(match.price)}</span>`;
+        } else {
+          cell.textContent = 'Sin datos';
+        }
+      } catch {
+        cell.textContent = 'Error';
+      }
+    }));
+
+    btn.disabled = false;
+    btn.innerHTML = '<i class="bi bi-arrow-clockwise me-1"></i>Actualizar precios';
+  }
+
+  function init() {
+    document.getElementById('btnRefreshInterests').addEventListener('click', refreshPrices);
+    document.getElementById('btnClearInterests').addEventListener('click', () => {
+      if (getAll().length === 0) return;
+      DeleteModal.confirm('¿Limpiar toda la lista de Interesantes?', () => {
+        saveAll([]);
+        render();
+        Toast.show('Lista de Interesantes limpiada.', 'warning');
+      });
+    });
+    render();
+  }
+
+  return { init, add, remove, updateBadge };
 })();
 
 // ══════════════════════════════════════════════════════════════
@@ -570,6 +820,7 @@ document.addEventListener('DOMContentLoaded', () => {
   CategoriesModule.init();
   SuppliersModule.init();
   SearchModule.init();
+  InterestsModule.init();
 
   // Refrescar dropdowns al cambiar de pestaña
   document.getElementById('tab-proveedores').addEventListener('shown.bs.tab', () => {

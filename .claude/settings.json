@@ -32,7 +32,18 @@
       "Bash('.input-search-home')",
       "Bash(curl -s https://core.digitalife.com.mx/api/search/t_laptop -H 'User-Agent: Mozilla/5.0 \\(Windows NT 10.0; Win64; x64\\) AppleWebKit/537.36' -H 'Accept: application/json' --max-time 10)",
       "Bash(curl -sv https://core.digitalife.com.mx/api/search/t_laptop -H 'User-Agent: Mozilla/5.0' --max-time 10)",
-      "Bash(curl -s 'http://localhost:3000/api/scrape?url=__CMDSUB_OUTPUT__&q=laptop')"
+      "Bash(curl -s 'http://localhost:3000/api/scrape?url=__CMDSUB_OUTPUT__&q=laptop')",
+      "Bash(pkill -f \"node --watch server.js\")",
+      "Bash(lsof -ti:3000)",
+      "Bash(npm start *)",
+      "Bash(curl -s http://localhost:3000)",
+      "Bash(curl -s \"http://localhost:3000/api/scrape?url=https://www.mercadolibre.com.mx&q=laptop\")",
+      "Bash(curl -s -X POST https://api.mercadolibre.com/oauth/token -H 'Content-Type: application/x-www-form-urlencoded' -d 'grant_type=client_credentials&client_id=4019120361171600&client_secret=LELevElnYtmqVIjq0C9l25Xjn6uB2CQY')",
+      "Bash(curl -s -H 'Authorization: Bearer APP_USR-4019120361171600-052108-b9643a2dcd23fdeec1cee4a4f91f771a-71225473' 'https://api.mercadolibre.com/sites/MLM/search?q=laptop&limit=3')",
+      "Bash(curl -s \"https://api.mercadolibre.com/sites/MLM/search?q=laptop&limit=3\")",
+      "Bash(curl -s -H 'Authorization: Bearer __TRACKED_VAR__' 'https://api.mercadolibre.com/sites/MLM/search?q=laptop&limit=3&access_token=__TRACKED_VAR__')",
+      "Bash(curl -s -H 'Authorization: Bearer APP_USR-4019120361171600-052108-b9643a2dcd23fdeec1cee4a4f91f771a-71225473' https://api.mercadolibre.com/users/me)",
+      "Bash(curl -s -H 'Authorization: Bearer APP_USR-4019120361171600-052108-b9643a2dcd23fdeec1cee4a4f91f771a-71225473' 'https://api.mercadolibre.com/sites/MLM/search?q=laptop&limit=3&offset=0' -v)"
     ]
   }
 }

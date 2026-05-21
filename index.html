@@ -38,6 +38,12 @@
             <i class="bi bi-building me-1"></i>Proveedores
           </button>
         </li>
+        <li class="nav-item">
+          <button class="nav-link px-4" id="tab-interesantes" data-bs-toggle="tab" data-bs-target="#pane-interesantes" type="button">
+            <i class="bi bi-bookmark-heart me-1"></i>Interesantes
+            <span class="badge bg-danger rounded-pill ms-1" id="interestCount" style="display:none">0</span>
+          </button>
+        </li>
       </ul>
     </div>
   </div>
@@ -78,17 +84,48 @@
 
             <!-- Resultados -->
             <div id="searchResults" class="d-none">
-              <div class="d-flex align-items-center justify-content-between mb-3">
+              <div class="d-flex align-items-center justify-content-between mb-2">
                 <h6 class="text-muted mb-0">
                   Resultados para: <span id="searchQuery" class="fw-bold text-dark"></span>
                 </h6>
-                <span class="badge bg-primary rounded-pill" id="resultsCount"></span>
+                <div class="d-flex align-items-center gap-2">
+                  <button class="btn btn-sm btn-outline-primary" id="btnAddInterests" disabled>
+                    <i class="bi bi-bookmark-plus me-1"></i>Guardar seleccionados
+                  </button>
+                  <span class="badge bg-primary rounded-pill" id="resultsCount"></span>
+                </div>
               </div>
+
+              <!-- Filtro por rango de precio -->
+              <div class="d-flex align-items-center gap-2 mb-3 flex-wrap">
+                <small class="text-muted fw-medium">
+                  <i class="bi bi-funnel me-1"></i>Filtrar por precio:
+                </small>
+                <div class="input-group input-group-sm" style="max-width:155px">
+                  <span class="input-group-text">$ Mín</span>
+                  <input type="number" class="form-control" id="filterPriceMin"
+                    placeholder="0" min="0" step="100">
+                </div>
+                <span class="text-muted small">—</span>
+                <div class="input-group input-group-sm" style="max-width:175px">
+                  <span class="input-group-text">$ Máx</span>
+                  <input type="number" class="form-control" id="filterPriceMax"
+                    placeholder="Sin límite" min="0" step="100">
+                </div>
+                <button class="btn btn-sm btn-outline-secondary" id="btnClearPriceFilter"
+                  title="Quitar filtro de precio">
+                  <i class="bi bi-x-circle me-1"></i>Limpiar
+                </button>
+              </div>
+
               <div class="card shadow-sm">
                 <div class="table-responsive">
                   <table class="table table-hover align-middle mb-0">
                     <thead class="table-primary">
                       <tr>
+                        <th class="text-center" style="width:42px">
+                          <input type="checkbox" class="form-check-input" id="checkAll" title="Seleccionar todos">
+                        </th>
                         <th>Proveedor</th>
                         <th>Categoría</th>
                         <th>Contacto</th>
@@ -283,6 +320,52 @@
                 No hay proveedores registrados aún.
               </div>
             </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ==================== TAB: INTERESANTES ==================== -->
+      <div class="tab-pane fade" id="pane-interesantes" role="tabpanel">
+        <div class="row justify-content-center">
+          <div class="col-lg-10">
+
+            <div class="d-flex align-items-center justify-content-between mb-3">
+              <h5 class="mb-0">
+                <i class="bi bi-bookmark-heart text-primary me-2"></i>Productos que me Interesan
+              </h5>
+              <div class="d-flex gap-2">
+                <button class="btn btn-outline-primary" id="btnRefreshInterests">
+                  <i class="bi bi-arrow-clockwise me-1"></i>Actualizar precios
+                </button>
+                <button class="btn btn-outline-danger" id="btnClearInterests">
+                  <i class="bi bi-trash me-1"></i>Limpiar lista
+                </button>
+              </div>
+            </div>
+
+            <div class="card shadow-sm">
+              <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                  <thead class="table-primary">
+                    <tr>
+                      <th>Producto</th>
+                      <th>Proveedor</th>
+                      <th>Categoría</th>
+                      <th class="text-end">Precio guardado</th>
+                      <th class="text-end">Precio actualizado</th>
+                      <th class="text-center" style="width:60px">Quitar</th>
+                    </tr>
+                  </thead>
+                  <tbody id="tbodyInterests"></tbody>
+                </table>
+              </div>
+              <div id="emptyInterests" class="text-center text-muted py-5">
+                <i class="bi bi-bookmark-heart fs-2 d-block mb-2"></i>
+                No hay productos guardados. Seleccione productos en los resultados de búsqueda y use
+                <strong>Guardar seleccionados</strong>.
+              </div>
+            </div>
+
           </div>
         </div>
       </div>
